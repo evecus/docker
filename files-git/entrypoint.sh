@@ -57,8 +57,8 @@ if is_valid_cron "$CRON_ENV"; then
     CRON_H=$(echo "$CRON_ENV"    | awk '{print $2}')
     CRON_REST=$(echo "$CRON_ENV" | awk '{print $3,$4,$5}')
     if echo "$CRON_H" | grep -qE '^[0-9]+$'; then
-        UTC_H=$(tz_hour_to_utc "$CRON_H")
-        FINAL_CRON="$CRON_MIN $UTC_H $CRON_REST"
+        #UTC_H=$(tz_hour_to_utc "$CRON_H")
+        FINAL_CRON="$CRON_MIN $CRON_H $CRON_REST"
         echo "[init] 使用 CRON=$CRON_ENV ($TZ) -> cron UTC: $FINAL_CRON"
     else
         FINAL_CRON="$CRON_ENV"
