@@ -1,17 +1,16 @@
 #!/bin/bash
 
-# 1. 设置默认变量
-# 如果未设置 UUID 环境变量，则使用此默认值
+# --- 1. 变量准备 ---
+# 默认 UUID (仅在没有环境变量 UUID 时使用)
 DEFAULT_UUID="3d039e25-d253-4b05-8d9f-91badac7c3ff"
 UUID=${UUID:-$DEFAULT_UUID}
 
+# 其他配置
+WS_PATH="/YDT4hf6qkamfijeiwnjwjen39" 
 LISTEN_PORT=${PORT:-8001} 
-WS_PATH="/YDT4hf6qaozmd46fijeiwnjwjen39" 
 
-echo "使用 UUID: ${UUID}"
-
-# 2. 生成 sing-box 配置文件 
-cat <<EOF > /etc/sing-box.json
+# --- 2. 生成 sing-box 配置文件 ---
+cat <<EOF > /etc/sing-box/config.json
 {
   "log": { "level": "warn", "timestamp": true },
   "inbounds": [
@@ -31,41 +30,55 @@ cat <<EOF > /etc/sing-box.json
 }
 EOF
 
-# 3. 启动 sing-box
-echo "启动 Sing-box..."
-sing-box run -c /etc/sing-box.json > /dev/null 2>&1 &
+# --- 3. 启动 sing-box ---
+echo "正在启动 Sing-box..."
+sing-box -D /etc/sing-box run > /dev/null 2>&1 &
 
-# 4. 自动生成临时 Cloudflare 隧道 (获取域名)
-echo "正在创建 Cloudflare 临时隧道..."
+# --- 4. 隧道逻辑切换 ---
+if [ -n "$DOMAIN" ] && [ -n "$TOKEN" ]; then
+    # 情况 A: 变量齐全，使用固定隧道
+    echo "检测到 DOMAIN 和 TOKEN，启动【固定隧道】模式..."
+    cloudflared tunnel --no-autoupdate run --token ${TOKEN} > /dev/null 2>&1 &
+    FINAL_DOMAIN=$DOMAIN
+    MODE="Fixed"
+else
+    # 情况 B: 缺少变量，使用临时隧道
+    echo "未检测到完整变量，启动【临时隧道】模式..."
+    LOG_FILE="/tmp/cloudflared.log"
+    # 映射本地 sing-box 端口到临时域名
+    cloudflared tunnel --no-autoupdate --url http://localhost:${LISTEN_PORT} > ${LOG_FILE} 2>&1 &
+    
+    # 轮询日志以获取生成的临时域名 (最多等待 15 秒)
+    echo "正在获取临时域名..."
+    for i in {1..15}; do
+        TEMP_DOMAIN=$(grep -oE "https://[a-zA-Z0-9-]+\.trycloudflare\.com" ${LOG_FILE} | head -n 1 | sed 's#https://##')
+        if [ -n "$TEMP_DOMAIN" ]; then
+            FINAL_DOMAIN=$TEMP_DOMAIN
+            break
+        fi
+        sleep 1
+    done
 
-# 将日志重定向到一个临时文件以获取生成的域名
-LOG_FILE="/tmp/cloudflared.log"
-cloudflared tunnel --no-autoupdate --url http://localhost:${LISTEN_PORT} > ${LOG_FILE} 2>&1 &
-
-# 等待几秒钟让 cloudflared 生成域名
-sleep 10
-
-# 从日志文件中提取域名
-DOMAIN=$(grep -oE "https://[a-zA-Z0-9-]+\.trycloudflare\.com" ${LOG_FILE} | head -n 1 | sed 's#https://##')
-
-if [ -z "$DOMAIN" ]; then
-    echo "❌ 无法获取临时域名，请检查 cloudflared 是否正常运行。"
-    exit 1
+    if [ -z "$FINAL_DOMAIN" ]; then
+        echo "❌ 错误: 无法获取临时域名。请检查网络或 cloudflared 是否安装。"
+        exit 1
+    fi
+    MODE="Temp"
 fi
 
-echo "✅ 临时域名已生成: ${DOMAIN}"
+# --- 5. 生成 VLESS 链接 ---
+VLESS_LINK="vless://${UUID}@www.visa.com:443?encryption=none&security=tls&sni=${FINAL_DOMAIN}&type=ws&host=${FINAL_DOMAIN}&path=${WS_PATH}#Vless-Argo"
 
-# 5. 生成 VLESS 节点链接 
-VLESS_LINK="vless://${UUID}@${DOMAIN}:443?encryption=none&security=tls&sni=${DOMAIN}&type=ws&host=${DOMAIN}&path=${WS_PATH}#Argo-Temp-${DOMAIN}"
-
-# 6. 输出结果
+# --- 6. 最终输出 ---
 echo "---------------------------------------------------" 
-echo "✅ 临时服务已启动！" 
+echo "🎉 服务已成功运行！" 
+echo "模式: ${MODE}"
+echo "UUID: ${UUID}"
+echo "域名: ${FINAL_DOMAIN}"
 echo "---------------------------------------------------" 
 echo "VLESS 节点链接:" 
 echo "${VLESS_LINK}" 
 echo "---------------------------------------------------" 
-echo "⚠️ 注意: 重启服务器后域名会改变。"
 
-# 保持脚本运行
+# 保持脚本运行，防止容器/进程退出
 wait
