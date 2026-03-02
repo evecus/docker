@@ -1,68 +1,39 @@
-# ---------- 第一阶段：下载 ----------
-FROM debian:12-slim AS builder
-
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        curl \
-        tar \
-        jq \
-        ca-certificates && \
-    rm -rf /var/lib/apt/lists/*
-
-ARG TARGETARCH
-# 接收来自 Actions 的版本号变量，用于强制打破 Docker 缓存
-ARG SB_VER_TAG
-ARG CF_VER_TAG
-
-# 下载 sing-box
-RUN set -eux; \
-    SB_VERSION=$(curl -s https://api.github.com/repos/SagerNet/sing-box/releases/latest | jq -r '.tag_name' | sed 's/^v//'); \
-    case "$TARGETARCH" in \
-      amd64) SB_ARCH=amd64 ;; \
-      arm64) SB_ARCH=arm64 ;; \
-      *) echo "unsupported arch: $TARGETARCH" && exit 1 ;; \
-    esac; \
-    curl -Lo /tmp/sing-box.tar.gz \
-      https://github.com/SagerNet/sing-box/releases/download/v${SB_VERSION}/sing-box-${SB_VERSION}-linux-${SB_ARCH}.tar.gz; \
-    tar -xzf /tmp/sing-box.tar.gz -C /tmp; \
-    mv /tmp/sing-box-*/sing-box /usr/local/bin/sing-box; \
-    chmod +x /usr/local/bin/sing-box
-
-# 下载 cloudflared
-RUN set -eux; \
-    case "$TARGETARCH" in \
-      amd64) CF_ARCH=amd64 ;; \
-      arm64) CF_ARCH=arm64 ;; \
-      *) echo "unsupported arch: $TARGETARCH" && exit 1 ;; \
-    esac; \
-    curl -Lo /usr/local/bin/cloudflared \
-      https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-${CF_ARCH}; \
-    chmod +x /usr/local/bin/cloudflared
-
-
-# ---------- 第二阶段：运行 ----------
 FROM debian:12-slim
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        bash \
-        ca-certificates \
-        curl && \
-    rm -rf /var/lib/apt/lists/*
+# 1. 设置环境变量，让某些程序直接识别上海时区
+ENV TZ=Asia/Shanghai
 
-RUN mkdir -p /etc/sing-box
+# 2. 安装必要工具，并配置时区
+RUN apt-get update && apt-get install -y \
+    tzdata \
+    libssl3 \
+    openssl \
+    iproute2 \
+    openssh-server \
+    cron \
+    wget \
+    curl \
+    nano \
+    vim \
+    iputils-ping \
+    net-tools \
+    procps \
+    ca-certificates \
+    && ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime \
+    && echo "Asia/Shanghai" > /etc/timezone \
+    && mkdir /var/run/sshd \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /usr/local/bin/sing-box /usr/local/bin/
-COPY --from=builder /usr/local/bin/cloudflared /usr/local/bin/
-COPY singargoless/entrypoint.sh /entrypoint.sh
+# 配置 SSH：允许 root 登录和密码认证
+RUN sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config \
+    && sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config
 
+# 将启动脚本复制到根目录
+COPY debian12/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-# 设置 Go 内存限制的环境变量，辅助降低内存占用
-ENV PORT=8080 \
-    UUID="" \
-    DOMAIN="" \
-    TOKEN="" \
-    GOGC=50
+# 暴露端口与定义持久化目录
+EXPOSE 22
+VOLUME ["/root", "/opt", "/usr/local/bin"]
 
-ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]
+ENTRYPOINT ["/entrypoint.sh"]
