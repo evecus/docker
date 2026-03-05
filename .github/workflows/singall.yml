@@ -2,8 +2,6 @@ name: singall
 
 on:
   workflow_dispatch: # 支持手动触发
-  schedule:
-    - cron: '0 0 */6 * *'
 
 jobs:
   check-version:
@@ -95,7 +93,8 @@ jobs:
           file: ./singall/Dockerfile
           push: true
           platforms: linux/amd64,linux/arm64
-          tags: ${{ steps.meta.outputs.tags }}
+          tags: evecus/singall:1.12.22
+                evecus/singall:latest
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
