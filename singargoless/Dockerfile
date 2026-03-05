@@ -1,16 +1,9 @@
 # ---------- 第一阶段：下载 ----------
-FROM debian:12-slim AS builder
+FROM alpine:latest AS builder
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        curl \
-        tar \
-        jq \
-        ca-certificates && \
-    rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache curl tar jq ca-certificates
 
 ARG TARGETARCH
-# 接收来自 Actions 的版本号变量，用于强制打破 Docker 缓存
 ARG SB_VER_TAG
 ARG CF_VER_TAG
 
@@ -41,28 +34,16 @@ RUN set -eux; \
 
 
 # ---------- 第二阶段：运行 ----------
-FROM debian:12-slim
+FROM alpine:latest
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        bash \
-        ca-certificates \
-        curl && \
-    rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache bash ca-certificates curl
 
 RUN mkdir -p /etc/sing-box
 
 COPY --from=builder /usr/local/bin/sing-box /usr/local/bin/
 COPY --from=builder /usr/local/bin/cloudflared /usr/local/bin/
-COPY singargoless/entrypoint.sh /entrypoint.sh
+COPY entrypoint.sh /entrypoint.sh
 
 RUN chmod +x /entrypoint.sh
-
-# 设置 Go 内存限制的环境变量，辅助降低内存占用
-ENV PORT=8080 \
-    UUID="" \
-    DOMAIN="" \
-    TOKEN="" \
-    GOGC=50
 
 ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]
