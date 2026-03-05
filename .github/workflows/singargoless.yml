@@ -1,9 +1,7 @@
 name: singargoless
 
 on:
-  workflow_dispatch:      # 支持手动触发
-  schedule:
-    - cron: '0 0 */5 * *'  # 每5天自动检查一次
+  workflow_dispatch:
 
 jobs:
   check-version:
@@ -95,7 +93,8 @@ jobs:
           build-args: |
             SB_VER_TAG=${{ needs.check-version.outputs.sb_ver }}
             CF_VER_TAG=${{ needs.check-version.outputs.cf_ver }}
-          tags: ${{ steps.meta.outputs.tags }}
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/singargoless:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
