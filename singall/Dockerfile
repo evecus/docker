@@ -1,11 +1,7 @@
 # ---------- 第一阶段：下载二进制 ----------
 FROM alpine:3.19 AS builder
 
-RUN apk add --no-cache bash curl tar jq ca-certificates gcompat && \
-    case "$(uname -m)" in \
-      x86_64)  ln -sf /lib/ld-musl-x86_64.so.1  /lib/ld-linux-x86-64.so.2 ;; \
-      aarch64) ln -sf /lib/ld-musl-aarch64.so.1 /lib/ld-linux-aarch64.so.1 ;; \
-    esac
+RUN apk add --no-cache curl tar
 
 ARG TARGETARCH
 # 修复：补充 AS builder 命名；用 TARGETARCH 替换 uname -m，支持交叉编译
@@ -16,7 +12,7 @@ RUN set -eux; \
       *) echo "Unsupported arch: $TARGETARCH" && exit 1 ;; \
     esac; \
     SB_VERSION=$(curl -s https://api.github.com/repos/SagerNet/sing-box/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/' | sed 's/v//'); \
-    curl -Lo /tmp/sing-box.tar.gz https://github.com/SagerNet/sing-box/releases/download/v${SB_VERSION}/sing-box-${SB_VERSION}-${SB_ARCH}.tar.gz; \
+    curl -Lo /tmp/sing-box.tar.gz https://github.com/SagerNet/sing-box/releases/download/v1.12.22/sing-box-1.12.22-${SB_ARCH}.tar.gz; \
     tar -xzf /tmp/sing-box.tar.gz -C /tmp; \
     mv /tmp/sing-box-*/sing-box /usr/local/bin/; \
     chmod +x /usr/local/bin/sing-box; \
