@@ -1,0 +1,17 @@
+FROM alpine:latest
+
+# 只需要运行时工具：bash curl tar jq + gcompat 兼容层
+RUN apk add --no-cache bash curl tar jq ca-certificates gcompat && \
+    case "$(uname -m)" in \
+      x86_64)  ln -sf /lib/ld-musl-x86_64.so.1  /lib/ld-linux-x86-64.so.2 ;; \
+      aarch64) ln -sf /lib/ld-musl-aarch64.so.1 /lib/ld-linux-aarch64.so.1 ;; \
+    esac
+
+RUN mkdir -p /etc/sing-box /usr/local/bin
+
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+ENV GOGC=50
+
+ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]
