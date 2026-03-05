@@ -94,7 +94,8 @@ jobs:
             SB_VER_TAG=${{ needs.check-version.outputs.sb_ver }}
             CF_VER_TAG=${{ needs.check-version.outputs.cf_ver }}
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/singargoless:
+            evecus/singargoless:1.12.22
+            evecus/singargoless:latest
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
