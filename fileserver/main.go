@@ -2,7 +2,6 @@ package main
 
 import (
 	"embed"
-	"encoding/base64"
 	"fmt"
 	"html/template"
 	"io"
@@ -33,22 +32,6 @@ type DirData struct {
 	Files []FileInfo
 }
 
-type FileData struct {
-	Path      string
-	Parts     []PathPart
-	Name      string
-	Size      int64
-	Ext       string
-	Content   string
-	IsText    bool
-	IsTooBig  bool
-	IsImage   bool
-	ImageB64  string
-	ImageMime string
-	RawURL    string
-	WgetCmd   string
-}
-
 type PathPart struct {
 	Name string
 	Path string
@@ -72,7 +55,6 @@ func main() {
 	}
 	http.HandleFunc("/__last_update__", lastUpdateHandler)
 	http.HandleFunc("/__syncing__", syncingHandler)
-	http.HandleFunc("/__raw__/", rawPrefixHandler)
 	http.HandleFunc("/", handler)
 	fmt.Printf("🚀 FileServer running at http://localhost:%s\n", port)
 	fmt.Printf("📁 Serving: %s\n", dataRoot)
@@ -114,23 +96,6 @@ func syncingHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func rawPrefixHandler(w http.ResponseWriter, r *http.Request) {
-	urlPath := strings.TrimPrefix(r.URL.Path, "/__raw__/")
-	fsPath := filepath.Join(dataRoot, filepath.FromSlash(urlPath))
-	absData, _ := filepath.Abs(dataRoot)
-	absPath, err := filepath.Abs(fsPath)
-	if err != nil || !strings.HasPrefix(absPath, absData) {
-		http.Error(w, "Forbidden", 403)
-		return
-	}
-	info, err := os.Stat(fsPath)
-	if err != nil || info.IsDir() {
-		http.Error(w, "Not Found", 404)
-		return
-	}
-	serveRaw(w, r, fsPath)
-}
-
 func lastUpdateHandler(w http.ResponseWriter, r *http.Request) {
 	data, err := os.ReadFile(lastUpdateFile)
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -150,14 +115,9 @@ var funcMap = template.FuncMap{
 	"add":        func(a, b int) int { return a + b },
 }
 
-// isBrowser 判断请求是否来自浏览器：Accept 头包含 text/html 即视为浏览器
-func isBrowser(r *http.Request) bool {
-	return strings.Contains(r.Header.Get("Accept"), "text/html")
-}
-
 func handler(w http.ResponseWriter, r *http.Request) {
-	// 同步进行中时，浏览器访问任何路径都返回同步中提示页
-	if isSyncing() && isBrowser(r) {
+	// 同步进行中时，返回同步中提示页（通过 Accept 头判断浏览器）
+	if isSyncing() && strings.Contains(r.Header.Get("Accept"), "text/html") {
 		serveSyncing(w, r)
 		return
 	}
@@ -175,20 +135,16 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if info.IsDir() {
-		// 目录：浏览器显示列表页，wget/curl 返回 404（目录无原始内容）
-		if isBrowser(r) {
+		// 目录：浏览器显示列表页，wget/curl 返回 404
+		if strings.Contains(r.Header.Get("Accept"), "text/html") {
 			serveDir(w, r, fsPath, urlPath)
 		} else {
 			http.Error(w, "Not a file: "+urlPath, 404)
 		}
 		return
 	}
-	// 文件：浏览器显示预览页，wget/curl 直接返回原始内容
-	if isBrowser(r) {
-		serveFile(w, r, fsPath, urlPath)
-	} else {
-		serveRaw(w, r, fsPath)
-	}
+	// 文件：统一返回原始内容，浏览器触发下载或直接渲染
+	serveRaw(w, r, fsPath)
 }
 
 func serveSyncing(w http.ResponseWriter, r *http.Request) {
@@ -298,51 +254,6 @@ func serveDir(w http.ResponseWriter, r *http.Request, fsPath, urlPath string) {
 	tmpl := template.Must(template.New("dir.html").Funcs(funcMap).ParseFS(templateFS, "templates/dir.html"))
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	tmpl.Execute(w, data)
-}
-
-func serveFile(w http.ResponseWriter, r *http.Request, fsPath, urlPath string) {
-	info, _ := os.Stat(fsPath)
-	ext := strings.ToLower(filepath.Ext(fsPath))
-	name := filepath.Base(fsPath)
-	scheme := "http"
-	if r.TLS != nil {
-		scheme = "https"
-	}
-	rawURL := fmt.Sprintf("%s://%s/%s", scheme, r.Host, urlPath)
-	rawViewURL := fmt.Sprintf("%s://%s/__raw__/%s", scheme, r.Host, urlPath)
-	fd := FileData{
-		Path:    urlPath,
-		Parts:   buildParts(urlPath),
-		Name:    name,
-		Size:    info.Size(),
-		Ext:     ext,
-		RawURL:  rawViewURL,
-		WgetCmd: fmt.Sprintf(`wget "%s"`, rawURL),
-	}
-	if isImageFile(ext) {
-		data, err := os.ReadFile(fsPath)
-		if err == nil {
-			fd.IsImage = true
-			fd.ImageB64 = base64.StdEncoding.EncodeToString(data)
-			fd.ImageMime = mime.TypeByExtension(ext)
-			if fd.ImageMime == "" {
-				fd.ImageMime = "image/png"
-			}
-		}
-	} else if isTextFile(ext) {
-		if info.Size() > 500*1024 {
-			fd.IsTooBig = true
-		} else {
-			data, err := os.ReadFile(fsPath)
-			if err == nil {
-				fd.IsText = true
-				fd.Content = string(data)
-			}
-		}
-	}
-	tmpl := template.Must(template.New("file.html").Funcs(funcMap).ParseFS(templateFS, "templates/file.html"))
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	tmpl.Execute(w, fd)
 }
 
 func serveRaw(w http.ResponseWriter, r *http.Request, fsPath string) {
