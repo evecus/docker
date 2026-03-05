@@ -12,7 +12,7 @@ RUN set -eux; \
       *) echo "Unsupported arch: $TARGETARCH" && exit 1 ;; \
     esac; \
     SB_VERSION=$(curl -s https://api.github.com/repos/SagerNet/sing-box/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/' | sed 's/v//'); \
-    curl -Lo /tmp/sing-box.tar.gz https://github.com/SagerNet/sing-box/releases/download/v${SB_VERSION}/sing-box-${SB_VERSION}-linux-${SB_ARCH}.tar.gz; \
+    curl -Lo /tmp/sing-box.tar.gz https://github.com/SagerNet/sing-box/releases/download/v1.12.22/sing-box-1.12.22-linux-${SB_ARCH}.tar.gz; \
     tar -xzf /tmp/sing-box.tar.gz -C /tmp; \
     mv /tmp/sing-box-*/sing-box /usr/local/bin/sing-box; \
     chmod +x /usr/local/bin/sing-box
