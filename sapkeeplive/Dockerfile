@@ -1,49 +1,47 @@
-# ---------- 第一阶段：下载 ----------
-FROM alpine:latest AS builder
+# ---------- 第一阶段：下载 CF CLI 二进制 ----------
+FROM alpine:latest AS fetcher
 
-RUN apk add --no-cache curl tar jq ca-certificates
+RUN apk add --no-cache curl
 
 ARG TARGETARCH
-ARG SB_VER_TAG
-ARG CF_VER_TAG
-
-# 下载 sing-box
-RUN set -eux; \
-    SB_VERSION=$(curl -s https://api.github.com/repos/SagerNet/sing-box/releases/latest | jq -r '.tag_name' | sed 's/^v//'); \
-    case "$TARGETARCH" in \
-      amd64) SB_ARCH=amd64 ;; \
-      arm64) SB_ARCH=arm64 ;; \
-      *) echo "unsupported arch: $TARGETARCH" && exit 1 ;; \
-    esac; \
-    curl -Lo /tmp/sing-box.tar.gz \
-      https://github.com/SagerNet/sing-box/releases/download/v${SB_VERSION}/sing-box-${SB_VERSION}-linux-${SB_ARCH}.tar.gz; \
-    tar -xzf /tmp/sing-box.tar.gz -C /tmp; \
-    mv /tmp/sing-box-*/sing-box /usr/local/bin/sing-box; \
-    chmod +x /usr/local/bin/sing-box
-
-# 下载 cloudflared
+# 官方提供 linux64-binary 压缩包，直接解压取二进制，无需 dpkg
 RUN set -eux; \
     case "$TARGETARCH" in \
-      amd64) CF_ARCH=amd64 ;; \
-      arm64) CF_ARCH=arm64 ;; \
-      *) echo "unsupported arch: $TARGETARCH" && exit 1 ;; \
+      amd64) CF_RELEASE="linux64-binary" ;; \
+      arm64) CF_RELEASE="linuxarm64-binary" ;; \
+      *) echo "Unsupported arch: $TARGETARCH" && exit 1 ;; \
     esac; \
-    curl -Lo /usr/local/bin/cloudflared \
-      https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-${CF_ARCH}; \
-    chmod +x /usr/local/bin/cloudflared
+    curl -fsSL "https://packages.cloudfoundry.org/stable?release=${CF_RELEASE}&version=v8&source=github" \
+      | tar -zx -C /tmp; \
+    mv /tmp/cf8 /usr/local/bin/cf8; \
+    mv /tmp/cf  /usr/local/bin/cf; \
+    chmod +x /usr/local/bin/cf8 /usr/local/bin/cf
 
-
-# ---------- 第二阶段：运行 ----------
+# ---------- 第二阶段：运行镜像 ----------
 FROM alpine:latest
 
-RUN apk add --no-cache bash ca-certificates curl
+RUN apk add --no-cache bash curl ca-certificates tzdata cronie
 
-RUN mkdir -p /etc/sing-box
+# 设置上海时区
+RUN ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && echo "Asia/Shanghai" > /etc/timezone
 
-COPY --from=builder /usr/local/bin/sing-box /usr/local/bin/
-COPY --from=builder /usr/local/bin/cloudflared /usr/local/bin/
-COPY entrypoint.sh /entrypoint.sh
+# 从第一阶段拷贝 CF CLI
+COPY --from=fetcher /usr/local/bin/cf8 /usr/local/bin/cf8
+COPY --from=fetcher /usr/local/bin/cf  /usr/local/bin/cf
 
-RUN chmod +x /entrypoint.sh
+COPY sapkeeplive/sap-keep.sh /usr/local/bin/sap-keep.sh
+RUN chmod +x /usr/local/bin/sap-keep.sh
 
-ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]
+# 初始化日志
+RUN touch /var/log/cron.log
+
+CMD ["sh", "-c", "\
+    printenv > /etc/environment && \
+    MINUTE=$(echo ${TIME:-08:30} | cut -d':' -f2) && \
+    HOUR=$(echo ${TIME:-08:30} | cut -d':' -f1) && \
+    echo \"$MINUTE $HOUR * * * . /etc/environment; /bin/bash /usr/local/bin/sap-keep.sh >> /var/log/cron.log 2>&1\" > /etc/cron.d/sap-cron && \
+    chmod 0644 /etc/cron.d/sap-cron && \
+    crontab /etc/cron.d/sap-cron && \
+    echo \"Cron task set for $HOUR:$MINUTE\" && \
+    crond && \
+    tail -f /var/log/cron.log"]
