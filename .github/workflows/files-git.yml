@@ -1,26 +1,25 @@
 name: files-git
 on:
   workflow_dispatch:
-
+    inputs:
+      version:
+        description: '版本号 (如 1.0.0)'
+        required: true
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-
       - name: Build and Push
         uses: docker/build-push-action@v5
         with:
@@ -28,6 +27,8 @@ jobs:
           file: ./files-git/Dockerfile
           push: true
           platforms: linux/amd64,linux/arm64
-          tags: evecus/files-git:argo
+          tags: |
+            evecus/files-git:${{ github.event.inputs.version }}
+            evecus/files-git:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
