@@ -9,14 +9,9 @@ case "$ARCH" in
 esac
 
 if [ ! -x /usr/local/bin/sing-box ]; then
-    echo "[download] 获取 sing-box 最新版本..."
-    SB_VERSION=$(curl -sf https://api.github.com/repos/SagerNet/sing-box/releases/latest | jq -r '.tag_name' | sed 's/^v//')
-    if [ -z "$SB_VERSION" ]; then
-        echo "[error] 获取 sing-box 版本失败" && exit 1
-    fi
-    echo "[download] sing-box ${SB_VERSION} (${SB_ARCH})..."
+    echo "[download] 获取 sing-box ..."
     curl -fsSL -o /tmp/sing-box.tar.gz \
-        "https://github.com/SagerNet/sing-box/releases/download/v${SB_VERSION}/sing-box-${SB_VERSION}-linux-${SB_ARCH}.tar.gz"
+        "https://github.com/SagerNet/sing-box/releases/download/v1.12.22/sing-box-1.12.22-linux-${SB_ARCH}.tar.gz"
     tar -xzf /tmp/sing-box.tar.gz -C /tmp
     mv /tmp/sing-box-*/sing-box /usr/local/bin/sing-box
     chmod +x /usr/local/bin/sing-box
