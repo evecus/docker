@@ -1,4 +1,4 @@
-# ---------- 第一阶段：下载 ----------
+# ---------- 第一阶段：下载 sing-box 和 cloudflared ----------
 FROM alpine:latest AS builder
 
 RUN apk add --no-cache curl tar jq ca-certificates
@@ -21,7 +21,7 @@ RUN set -eux; \
     mv /tmp/sing-box-*/sing-box /usr/local/bin/sing-box; \
     chmod +x /usr/local/bin/sing-box
 
-# 下载 cloudflared
+# 下载 cloudflared（纯静态 Go 二进制，无 libc 依赖）
 RUN set -eux; \
     case "$TARGETARCH" in \
       amd64) CF_ARCH=amd64 ;; \
@@ -36,7 +36,13 @@ RUN set -eux; \
 # ---------- 第二阶段：运行 ----------
 FROM alpine:latest
 
-RUN apk add --no-cache bash ca-certificates curl
+# gcompat 提供 glibc 兼容层，sing-box 动态链接了 glibc 符号需要它
+# 符号链接让 ELF interpreter 路径能被 Alpine 的 musl 链接器接管
+RUN apk add --no-cache bash ca-certificates curl gcompat && \
+    case "$(uname -m)" in \
+      x86_64)  ln -sf /lib/ld-musl-x86_64.so.1    /lib/ld-linux-x86-64.so.2 ;; \
+      aarch64) ln -sf /lib/ld-musl-aarch64.so.1   /lib/ld-linux-aarch64.so.1 ;; \
+    esac
 
 RUN mkdir -p /etc/sing-box
 
