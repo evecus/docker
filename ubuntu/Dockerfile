@@ -1,4 +1,4 @@
-FROM ubuntu:24.04-minimal
+FROM ubuntu:24.04-slim
 
 # 1. 设置环境变量
 ENV DEBIAN_FRONTEND=noninteractive
