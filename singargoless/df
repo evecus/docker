@@ -1,7 +1,7 @@
 FROM alpine:latest
 
-# 只需要运行时工具：bash curl tar jq + gcompat 兼容层
-RUN apk add --no-cache curl tar
+# 只需要运行时工具：bash curl tar jq 
+RUN apk add --no-cache bash curl tar jq ca-certificates gcompat
 
 RUN mkdir -p /etc/sing-box /usr/local/bin
 
