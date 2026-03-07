@@ -28,8 +28,8 @@ var dataRoot = func() string {
 }()
 
 var (
-	authUser = os.Getenv("USER")
-	authPass = os.Getenv("PASSWORD")
+	authUser = os.Getenv("U")
+	authPass = os.Getenv("P")
 )
 
 type FileInfo struct {
