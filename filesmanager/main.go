@@ -83,7 +83,7 @@ func main() {
 	http.HandleFunc("/__raw__/", rawHandler)
 	http.HandleFunc("/", handler)
 
-	fmt.Printf("🚀 FileServer running at http://localhost:%s\n", port)
+	fmt.Printf("🚀 FilesManager running at http://localhost:%s\n", port)
 	fmt.Printf("📁 Serving: %s\n", dataRoot)
 	if err := http.ListenAndServe(":"+port, nil); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -469,7 +469,7 @@ func saveUploadedFile(fh *multipart.FileHeader, destDir string) error {
 
 func apiHandler(w http.ResponseWriter, r *http.Request) {
 	if !checkBasicAuth(r) {
-		w.Header().Set("WWW-Authenticate", `Basic realm="FileServer"`)
+		w.Header().Set("WWW-Authenticate", `Basic realm="FilesManager"`)
 		http.Error(w, "Unauthorized", 401)
 		return
 	}
@@ -488,7 +488,7 @@ func apiHandler(w http.ResponseWriter, r *http.Request) {
 		apiMkdir(w, r)
 	default:
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		fmt.Fprint(w, `FileServer API  (Basic Auth: -u user:pass)
+		fmt.Fprint(w, `FilesManager API  (Basic Auth: -u user:pass)
 
   GET  /api/list?path=<dir>        List directory (JSON)
   GET  /api/download?path=<file>   Download file

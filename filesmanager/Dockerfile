@@ -14,7 +14,7 @@ RUN set -eux; \
       "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-${CF_ARCH}"; \
     chmod +x /usr/local/bin/cloudflared
 
-# ── Stage 2: build Go fileserver ──────────────────────────────────────────────
+# ── Stage 2: build Go filesmanager ──────────────────────────────────────────────
 FROM golang:alpine AS builder
 
 WORKDIR /build
@@ -22,7 +22,7 @@ COPY go.mod .
 COPY main.go .
 COPY templates/ templates/
 
-RUN go build -ldflags="-s -w" -o fileserver .
+RUN go build -ldflags="-s -w" -o filesmanager .
 
 # ── Stage 3: runtime ──────────────────────────────────────────────────────────
 FROM alpine:latest
@@ -32,7 +32,7 @@ RUN apk add --no-cache tzdata ca-certificates
 ENV TZ=Asia/Shanghai
 
 COPY --from=fetcher /usr/local/bin/cloudflared /usr/local/bin/cloudflared
-COPY --from=builder /build/fileserver /usr/local/bin/fileserver
+COPY --from=builder /build/filesmanager /usr/local/bin/filesmanager
 
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh

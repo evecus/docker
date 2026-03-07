@@ -28,6 +28,6 @@ else
     echo "[init] 未启用 Argo 隧道"
 fi
 
-# ── 4. 启动 FileServer ────────────────────────────────────────────────────────
-echo "[init] 启动 FileServer..."
-exec /usr/local/bin/fileserver 8080
+# ── 4. 启动 FilesManager ────────────────────────────────────────────────────────
+echo "[init] 启动 FilesManager..."
+exec /usr/local/bin/filesmanager 8080
