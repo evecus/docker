@@ -30,6 +30,7 @@ RUN sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/
 
 # 将启动脚本复制到根目录
 COPY debian12/entrypoint.sh /entrypoint.sh
+COPY debian12/hostname /etc/hostname
 RUN chmod +x /entrypoint.sh
 
 # 暴露端口与定义持久化目录
