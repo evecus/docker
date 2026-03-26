@@ -10,6 +10,7 @@ esac
 
 if [ ! -x /usr/local/bin/sing-box ]; then
     echo "[download] 获取 sing-box ..."
+    SB_VERSION=$(curl -s https://api.github.com/repos/SagerNet/sing-box/releases/latest | jq -r '.tag_name' | sed 's/^v//'); \
     curl -fsSL -o /tmp/sing-box.tar.gz \
         "https://github.com/SagerNet/sing-box/releases/download/v${SB_VERSION}/sing-box-${SB_VERSION}-linux-${SB_ARCH}-musl.tar.gz"
     tar -xzf /tmp/sing-box.tar.gz -C /tmp
