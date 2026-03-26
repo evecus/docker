@@ -94,7 +94,7 @@ jobs:
           push: true
           platforms: linux/amd64,linux/arm64
           tags: |
-            evecus/singall:1.12.22
+            evecus/singall:${{ needs.check-version.outputs.sb_ver }}
             evecus/singall:latest
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
