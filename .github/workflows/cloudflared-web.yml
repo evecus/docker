@@ -1,9 +1,8 @@
 name: cloudflared-web
-
 on:
   schedule:
-    - cron: '0 0 */15 * *'
-  workflow_dispatch:      # 支持手动点击运行
+    - cron: '0 0 */3 * *'
+  workflow_dispatch:
 
 jobs:
   check-and-build:
@@ -18,26 +17,45 @@ jobs:
           VERSION=$(curl -s https://api.github.com/repos/cloudflare/cloudflared/releases/latest | jq -r .tag_name)
           echo "latest_version=$VERSION" >> $GITHUB_OUTPUT
 
+      # --- 关键步骤：尝试从缓存中恢复版本号记录 ---
+      - name: Restore version cache
+        id: cache-version
+        uses: actions/cache@v4
+        with:
+          path: .version_cache
+          key: cf-version-${{ steps.cf_ver.outputs.latest_version }}
+
+      # --- 判断逻辑：如果命中缓存且不是手动触发，则跳过 ---
       - name: Check if version changed
         id: check
         run: |
-          # 这里我们可以通过 Docker Hub API 检查是否已有该 Tag
-          # 为了简单可靠，我们直接对比官方版本。你也可以缓存旧版本号
-          echo "New version detected: ${{ steps.cf_ver.outputs.latest_version }}"
+          if [[ "${{ steps.cache-version.outputs.cache-hit }}" == "true" && "${{ github.event_name }}" != "workflow_dispatch" ]]; then
+            echo "Version ${{ steps.cf_ver.outputs.latest_version }} has already been built. Skipping..."
+            echo "should_build=false" >> $GITHUB_OUTPUT
+          else
+            echo "New version detected or manual trigger. Proceeding to build..."
+            echo "should_build=true" >> $GITHUB_OUTPUT
+            # 创建一个文件用于写入缓存
+            echo "${{ steps.cf_ver.outputs.latest_version }}" > .version_cache
+          fi
 
       - name: Set up QEMU
+        if: steps.check.outputs.should_build == 'true'
         uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
+        if: steps.check.outputs.should_build == 'true'
         uses: docker/setup-buildx-action@v3
 
       - name: Login to Docker Hub
+        if: steps.check.outputs.should_build == 'true'
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build and Push
+        if: steps.check.outputs.should_build == 'true'
         uses: docker/build-push-action@v5
         with:
           context: .
