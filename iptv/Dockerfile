@@ -6,7 +6,7 @@ WORKDIR /app
 ARG TARGETARCH
 
 # 复制对应架构的二进制
-COPY iptv-${TARGETARCH} /app/iptv
+COPY iptv-linux-${TARGETARCH} /app/iptv
 
 # 赋予执行权限
 RUN chmod +x /app/iptv
